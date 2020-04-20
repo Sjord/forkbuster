@@ -1,5 +1,6 @@
 import httpx
 import asyncio
+import sys
 
 test_files = set()
 
@@ -22,16 +23,19 @@ def wellknown_index(response):
     return b"Index of /.well-known/" in response.content
 
 async def search_origin(origin):
-    with httpx.Client() as client:
+    assert origin.endswith("/")
+    assert origin.startswith("http")
+
+    # with httpx.Client() as client:
+    async with httpx.AsyncClient(http2=True, verify=False) as client:
         for fname, found_func in test_files:
             url = origin + fname
-            if found_func(client.get(url)):
+            if found_func(await client.get(url)):
                 print(url)
     
 
-async def bust():
-    origin_queue = {"https://demo.sjoerdlangkemper.nl/", "https://www.qbit.nl/"}
-    found = await asyncio.wait([search_origin(o) for o in origin_queue])
+async def bust(queue):
+    found = await asyncio.gather(*[search_origin(o.strip()) for o in queue], return_exceptions=True)
 
-
-asyncio.get_event_loop().run_until_complete(bust())
+with open(sys.argv[1]) as fd:
+    asyncio.get_event_loop().run_until_complete(bust(fd))
